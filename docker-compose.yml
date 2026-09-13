@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  frontend-admin:
+    build:
+      context: ./frontend-admin
+      dockerfile: Dockerfile
+    ports:
+      - "8081:80"
+    restart: unless-stopped
+    container_name: subtitle-translator-frontend
