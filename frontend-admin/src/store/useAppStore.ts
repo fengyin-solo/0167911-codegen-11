@@ -13,6 +13,8 @@ const loadRecordsFromStorage = (): SessionRecord[] => {
       return parsed.map((r: SessionRecord) => ({
         ...r,
         timestamp: new Date(r.timestamp),
+        // 兼容旧数据：没有 starred 字段的记录默认为未重点关注
+        starred: r.starred ?? false,
       }));
     }
   } catch {
@@ -21,11 +23,14 @@ const loadRecordsFromStorage = (): SessionRecord[] => {
   return [];
 };
 
-const saveRecordsToStorage = (records: SessionRecord[]) => {
+// 返回是否持久化成功，失败时调用方应保持内存状态不变
+const saveRecordsToStorage = (records: SessionRecord[]): boolean => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    return true;
   } catch {
     console.error('Failed to save session records to storage');
+    return false;
   }
 };
 
@@ -176,6 +181,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const newRecord: SessionRecord = {
         id: generateId(),
         timestamp: new Date(),
+        starred: false,
         ...record,
       };
       const newRecords = [newRecord, ...state.sessionRecords];
@@ -183,19 +189,55 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { sessionRecords: newRecords };
     });
   },
-  
+
   deleteSessionRecord: (id: string) => {
-    set(state => {
-      const newRecords = state.sessionRecords.filter(r => r.id !== id);
-      saveRecordsToStorage(newRecords);
-      return { sessionRecords: newRecords };
-    });
+    get().removeSessionRecord(id);
     get().addToast('success', '记录已删除');
   },
-  
+
   clearSessionRecords: () => {
     set({ sessionRecords: [] });
     saveRecordsToStorage([]);
     get().addToast('success', '所有记录已清空');
+  },
+
+  toggleSessionRecordStarred: (id: string) => {
+    const record = get().sessionRecords.find(r => r.id === id);
+    if (!record) return;
+    get().setSessionRecordStarred(id, !record.starred);
+  },
+
+  removeSessionRecord: (id: string) => {
+    const { sessionRecords } = get();
+    if (!sessionRecords.some(r => r.id === id)) {
+      return false;
+    }
+    const newRecords = sessionRecords.filter(r => r.id !== id);
+    // 持久化失败则不改动内存状态，保证未处理成功的记录保持原样
+    if (!saveRecordsToStorage(newRecords)) {
+      return false;
+    }
+    set({ sessionRecords: newRecords });
+    return true;
+  },
+
+  setSessionRecordStarred: (id: string, starred: boolean) => {
+    const { sessionRecords } = get();
+    const record = sessionRecords.find(r => r.id === id);
+    if (!record) {
+      return false;
+    }
+    // 已是目标状态，视为成功（幂等，便于批量重试）
+    if (record.starred === starred) {
+      return true;
+    }
+    const newRecords = sessionRecords.map(r =>
+      r.id === id ? { ...r, starred } : r
+    );
+    if (!saveRecordsToStorage(newRecords)) {
+      return false;
+    }
+    set({ sessionRecords: newRecords });
+    return true;
   },
 }));
