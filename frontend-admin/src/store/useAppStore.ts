@@ -13,6 +13,8 @@ const loadRecordsFromStorage = (): SessionRecord[] => {
       return parsed.map((r: SessionRecord) => ({
         ...r,
         timestamp: new Date(r.timestamp),
+        // 旧数据没有 starred 字段，默认未关注
+        starred: r.starred ?? false,
       }));
     }
   } catch {
@@ -184,15 +186,29 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
   
-  deleteSessionRecord: (id: string) => {
+  deleteSessionRecord: (id, silent = false) => {
     set(state => {
       const newRecords = state.sessionRecords.filter(r => r.id !== id);
       saveRecordsToStorage(newRecords);
       return { sessionRecords: newRecords };
     });
-    get().addToast('success', '记录已删除');
+    if (!silent) {
+      get().addToast('success', '记录已删除');
+    }
   },
-  
+
+  // 批量删除由界面逐条控制（成功一条提交一条），未处理/失败的记录保持原样可重试
+
+  setSessionRecordStarred: (id, starred) => {
+    set(state => {
+      const newRecords = state.sessionRecords.map(r =>
+        r.id === id ? { ...r, starred } : r
+      );
+      saveRecordsToStorage(newRecords);
+      return { sessionRecords: newRecords };
+    });
+  },
+
   clearSessionRecords: () => {
     set({ sessionRecords: [] });
     saveRecordsToStorage([]);

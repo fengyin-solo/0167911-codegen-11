@@ -62,6 +62,8 @@ export interface SessionRecord {
   sourceLang: string;
   targetLang: string;
   timestamp: Date;
+  // 是否标记为重点关注
+  starred?: boolean;
   metadata?: {
     confidence?: number;
     duration?: number;
@@ -104,6 +106,7 @@ export interface AppState {
   addToast: (type: ToastType, message: string) => void;
   removeToast: (id: string) => void;
   addSessionRecord: (record: Omit<SessionRecord, 'id' | 'timestamp'>) => void;
-  deleteSessionRecord: (id: string) => void;
+  deleteSessionRecord: (id: string, silent?: boolean) => void;
+  setSessionRecordStarred: (id: string, starred: boolean) => void;
   clearSessionRecords: () => void;
 }
